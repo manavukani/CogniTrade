@@ -6,6 +6,8 @@ from datetime import datetime
 from alpaca_trade_api import REST
 from datetime import timedelta
 
+from sentiment_finbert import estimate_sentiment
+
 import os
 from dotenv import load_dotenv
 
@@ -41,17 +43,28 @@ class MLTrader(Strategy):
         end_date, start_date = self.get_dates()
         news = self.api.get_news(symbol=self.symbol, start=start_date, end=end_date)
         news = [event.__dict__["_raw"]["headline"] for event in news]
-        return news        
+        return news
+
+    def get_sentiment(self):
+        news = self.get_news()
+        probability, sentiment = estimate_sentiment(news)
+        return probability, sentiment
 
     def on_trading_iteration(self):
         cash, last_price, quantity = self.position_sizing()
 
+        # news = self.get_news()
+        # print(news)
+
+        probability, sentiment = self.get_sentiment()
+        # print(f"Confidence: {probability}, Sentiment{sentiment}")
+
         if cash > last_price:
-            # testing news
-            news = self.get_news()
-            print(news)
-            
-            if self.last_trade == None:
+
+            # case 1
+            if sentiment == "positive" and probability > 0.999:
+                if self.last_trade == "sell":
+                    self.sell_all()
                 order = self.create_order(
                     self.symbol,
                     quantity,
@@ -62,6 +75,22 @@ class MLTrader(Strategy):
                 )
                 self.submit_order(order)
                 self.last_trade = "buy"
+
+            # case 2
+            elif sentiment == "negative" and probability > 0.999:
+                if self.last_trade == "buy":
+                    self.sell_all()
+                order = self.create_order(
+                    self.symbol,
+                    quantity,
+                    "sell",
+                    type="bracket",
+                    take_profit_price=last_price * 0.80,
+                    stop_loss_price=last_price * 1.05,
+                )
+                self.submit_order(order)
+                self.last_trade = "sell"
+            
 
 
 start_date = datetime(2024, 6, 1)
