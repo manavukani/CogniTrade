@@ -93,7 +93,7 @@ class MLTrader(Strategy):
             
 
 
-start_date = datetime(2024, 6, 1)
+start_date = datetime(2020, 1, 1)
 end_date = datetime(2024, 6, 30)
 
 broker = Alpaca(ALPACA_CREDS)
